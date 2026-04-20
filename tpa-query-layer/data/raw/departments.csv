@@ -1,0 +1,16 @@
+department_id,department_name,cost_center
+1,Finance,CC1001
+2,HR,CC1002
+3,Legal,CC1003
+4,Compliance,CC1004
+5,IT,CC1005
+6,Security,CC1006
+7,Sales,CC1007
+8,Operations,CC1008
+9,Marketing,CC1009
+10,Procurement,CC1010
+11,Risk,CC1011
+12,Engineering,CC1012
+13,Customer Success,CC1013
+14,Public Relations,CC1014
+15,Research and Development,CC1015
