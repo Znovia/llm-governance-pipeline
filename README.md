@@ -1,41 +1,131 @@
-﻿# TPA Governance Pipeline
+# LLM Governance Platform
 
-Python pipeline that scans LLM prompts for PII, routes them through binary BLOCKED / CLEARED logic, and logs every transaction to SQLite. Part of a three-layer AI governance project: pipeline -> query layer -> monitor (in progress).
+A data platform for monitoring, controlling, and analyzing LLM request traffic. The system scans prompts for sensitive data (PII), enforces governance rules (BLOCKED vs. CLEARED), logs every request, and exposes a structured analytics layer for downstream analysis.
 
-Related: https://github.com/Znovia/tpa-query-layer
+## Overview
 
-## What this does
+This project combines an ingestion pipeline with a structured query layer to simulate how organizations can safely integrate LLM usage into internal systems.
 
-- Intercepts prompts before they hit the Claude API
-- Scans for PII (SSN, account numbers, phone, email, credit card, routing numbers) using regex
-- Routes every prompt: BLOCKED (PII found) or CLEARED
-- Logs prompt, detection result, routing decision, response, and token counts to SQLite
-- Tracks token-level cost per request
+At a high level, the platform:
 
-## Stack
+- Intercepts LLM prompts before they are processed  
+- Detects potential PII using pattern-based validation  
+- Applies governance rules to allow or block requests  
+- Logs all activity for auditing and cost tracking  
+- Transforms raw logs into structured tables for analysis  
 
-Python, SQLite, Regex, Anthropic Claude API
+## Architecture
 
-## Data model
+The system is organized into two integrated components:
 
-Every request is written to a single request_logs table with columns for timestamp, user_id, department, use_case, original_input, pii_detected (comma-separated types), pii_count, action (BLOCKED or CLEARED), input_tokens, output_tokens, total_tokens, cost_usd, and ai_response.
+### 1. Ingestion Pipeline (Python)
 
-This raw log table is the input to Layer 2, where it gets normalized into a star schema with separate fact and dimension tables for analysis.
+A Python pipeline that simulates LLM request interception and governance.
 
-## How to run
+**Responsibilities:**
 
-Create a local .env file with your API key, install anthropic and python-dotenv via pip, then run: python tpa_pipeline_final.py
+- Scan incoming prompts for PII using regex patterns (SSN, email, phone, account numbers, routing numbers)  
+- Classify requests as:
+  - `BLOCKED` → PII detected; request never reaches the LLM  
+  - `CLEARED` → safe to process; forwarded to the Claude API  
+- Capture metadata for each request:
+  - prompt text and timestamp  
+  - input/output token counts  
+  - estimated cost  
+  - decision outcome  
+- Log every transaction to a SQLite database (`request_logs` table)  
 
-## Limitations
+**File:** `tpa_pipeline_final.py`
 
-- Regex-based detection, not ML
-- Single-user, local execution
-- SQLite for portfolio simplicity
-- Mock requests hardcoded in the script
+---
 
-## Next steps
+### 2. Query Layer (ETL + SQL Analytics)
 
-- Migrate logs to Postgres
-- Add retry and queue logic for API failures
-- Feed logs into Layer 2 (Query Layer) for analytics
-- Build Layer 3 (Monitor) for rule-based alerting
+Transforms raw pipeline logs into a normalized analytics schema for analysis.
+
+**Responsibilities:**
+
+- ETL process that reads raw `request_logs` and loads a star schema (fact + dimension tables)
+
+- **Data model:**
+  - `audit_events` (fact) — one row per prompt event  
+  - `users` (dimension)  
+  - `departments` (dimension)  
+  - `pii_events` (child table) — one row per detected PII instance  
+
+- SQL query library across three categories:
+
+  **Operational**
+  - daily request volume  
+  - cost per user / department  
+  - blocked vs. cleared ratios  
+
+  **Risk / Quality**
+  - repeat PII offenders  
+  - abnormal cost outliers  
+  - PII rate trends over time  
+
+  **Validation**
+  - orphan record detection  
+  - impossible state checks (e.g., blocked + tokens consumed)  
+  - cost sanity checks  
+
+- Techniques used:
+  - window functions (`RANK`, `AVG OVER`, `LAG`)  
+  - Common Table Expressions (CTEs)  
+  - aggregations and filtering (`GROUP BY`, `HAVING`)  
+
+- Data contract between ingestion and analytics layers documented in:
+  `docs/field_mapping.md`
+
+**Directory:** `tpa-query-layer/`
+
+---
+
+## Data Flow
+
+1. A prompt enters the pipeline  
+2. The system scans for PII using regex rules  
+3. The request is classified as `BLOCKED` or `CLEARED`  
+4. Cleared requests are sent to the Claude API  
+5. All events are logged to the `request_logs` table  
+6. The ETL process transforms raw logs into structured tables  
+7. SQL queries generate insights on usage, cost, and risk  
+
+---
+
+## Example Use Cases
+
+- Monitor how often sensitive data is sent to LLMs  
+- Track token usage and estimated cost by user or department  
+- Identify high-risk prompt patterns and repeat offenders  
+- Analyze blocked vs. cleared request trends over time  
+- Support governance, compliance, and audit reporting  
+
+---
+
+## Tech Stack
+
+- **Python** → ingestion pipeline and ETL  
+- **SQLite** → logging and analytical storage  
+- **SQL** → analytics and validation queries  
+- **Anthropic Claude API** → LLM integration  
+- **Regex** → PII detection engine  
+- **Data Modeling** → star schema (fact + dimension design)  
+- **Advanced SQL** → window functions, CTEs, aggregations  
+
+---
+
+## Future Improvements
+
+- Replace regex with ML-based PII detection  
+- Add live prompt input (currently uses hardcoded mock requests)  
+- Migrate from SQLite to PostgreSQL for production scale  
+- Add dbt models for versioned transformations  
+- Build rule-based monitoring for alerting on audit patterns  
+
+---
+
+## Author
+
+Selesa Kaoga
